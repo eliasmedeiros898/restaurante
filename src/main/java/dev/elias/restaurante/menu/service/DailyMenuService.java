@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import dev.elias.restaurante.catalog.repository.MenuItemRepository;
 import dev.elias.restaurante.menu.dto.UpdateDailyMenuSettingsRequest;
 
+import java.time.ZoneId;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -28,6 +29,8 @@ public class DailyMenuService {
     private final DailyMenuItemRepository dailyMenuItemRepository;
     private final MenuTemplateRepository menuTemplateRepository;
     private final MenuItemRepository menuItemRepository;
+    private static final ZoneId RESTAURANT_ZONE =
+            ZoneId.of("America/Sao_Paulo");
 
     public DailyMenuService(
             DailyMenuRepository dailyMenuRepository,
@@ -99,7 +102,9 @@ public class DailyMenuService {
     @Transactional(readOnly = true)
     public List<DailyMenuResponse> findAll() {
         LocalDate today =
-                LocalDate.now();
+                LocalDate.now(
+                        RESTAURANT_ZONE
+                );
 
         return dailyMenuRepository
                 .findByMenuDateGreaterThanEqualOrderByMenuDateAsc(
