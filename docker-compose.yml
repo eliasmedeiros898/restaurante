@@ -1,0 +1,195 @@
+  package dev.elias.restaurante.config;
+    
+    import org.springframework.context.annotation.Bean;
+    import org.springframework.context.annotation.Configuration;
+    import org.springframework.http.HttpMethod;
+    import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+    import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+    import org.springframework.security.crypto.password.PasswordEncoder;
+    import org.springframework.security.web.SecurityFilterChain;
+    import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+    import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
+    import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+    import org.springframework.security.web.context.SecurityContextRepository;
+    
+    import static org.springframework.http.HttpStatus.UNAUTHORIZED;
+    
+    @Configuration
+    public class SecurityConfig {
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder(12);
+    }
+
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+    return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    public SecurityContextLogoutHandler securityContextLogoutHandler(
+    SecurityContextRepository repository
+    ) {
+    SecurityContextLogoutHandler handler =
+    new SecurityContextLogoutHandler();
+    
+    handler.setInvalidateHttpSession(true);
+    handler.setClearAuthentication(true);
+    handler.setSecurityContextRepository(repository);
+    
+    return handler;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+    HttpSecurity http,
+    SecurityContextRepository repository
+    ) throws Exception {
+    
+    http
+    /*
+    * Temporariamente desativado.
+    * Revisaremos CSRF quando o Next.js
+    * estiver usando a sessão por cookie.
+    */
+    .csrf(csrf -> csrf.disable())
+    
+    .securityContext(context ->
+    context
+    .securityContextRepository(repository)
+    .requireExplicitSave(true)
+    )
+    
+    .authorizeHttpRequests(
+    authorization ->
+    authorization
+    
+    /*
+    * Health check público.
+    * Deve ficar antes de anyRequest().
+    */
+    .requestMatchers(
+    HttpMethod.GET,
+    "/actuator/health"
+    )
+    .permitAll()
+    
+    /*
+    * Autenticação
+    */
+    .requestMatchers(
+    HttpMethod.POST,
+    "/api/auth/login"
+    )
+    .permitAll()
+    
+    .requestMatchers(
+    "/api/auth/me",
+    "/api/auth/logout"
+    )
+    .authenticated()
+    
+    /*
+    * Cardápio e bairros públicos
+    */
+    .requestMatchers(
+    HttpMethod.GET,
+    "/api/public/**"
+    )
+    .permitAll()
+    
+    /*
+    * Criação e acompanhamento público
+    */
+    .requestMatchers(
+    HttpMethod.POST,
+    "/api/orders"
+    )
+    .permitAll()
+    
+    .requestMatchers(
+    HttpMethod.GET,
+    "/api/orders/number/**"
+    )
+    .permitAll()
+    
+    /*
+    * Cardápio administrativo.
+    * Apenas ADMIN e MANAGER.
+    */
+    .requestMatchers(
+    "/api/admin/daily-menus/**"
+    )
+    .hasAnyRole(
+    "ADMIN",
+    "MANAGER"
+    )
+    
+    /*
+    * Configurações de entrega.
+    * Apenas ADMIN e MANAGER.
+    */
+    .requestMatchers(
+    "/api/delivery-zones/**"
+    )
+    .hasAnyRole(
+    "ADMIN",
+    "MANAGER"
+    )
+    
+    /*
+    * Demais operações administrativas.
+    */
+    .requestMatchers(
+    "/api/admin/**"
+    )
+    .hasAnyRole(
+    "ADMIN",
+    "MANAGER",
+    "ATTENDANT"
+    )
+    
+    /*
+    * Bloqueia qualquer rota não declarada.
+    * SEMPRE deve ficar por último.
+    */
+    .anyRequest()
+    .denyAll()
+    )
+    
+    /*
+    * APIs devem devolver 401,
+    * não redirecionar para uma tela HTML.
+    */
+    .exceptionHandling(exceptions ->
+    exceptions.authenticationEntryPoint(
+    new HttpStatusEntryPoint(
+    UNAUTHORIZED
+    )
+    )
+    )
+    
+    /*
+    * Desabilita formulário e Basic Auth
+    * gerados automaticamente.
+    */
+    .formLogin(form ->
+    form.disable()
+    )
+    
+    .httpBasic(basic ->
+    basic.disable()
+    )
+    
+    /*
+    * Usaremos nosso próprio endpoint
+    * POST /api/auth/logout.
+    */
+    .logout(logout ->
+    logout.disable()
+    );
+    
+    return http.build();
+    }
+  }
